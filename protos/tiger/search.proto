@@ -1,0 +1,42 @@
+syntax = "proto3";
+option py_generic_services = true;
+
+import "google/api/annotations.proto";
+
+package tiger;
+
+
+message Document {
+  uint64 id = 1;
+  string author = 2;
+  string text = 3;
+  repeated string tags = 4;
+  repeated uint64 related_ids = 5;
+}
+
+
+message FindDocumentRequest {
+  repeated string terms = 1;
+}
+
+
+message FindDocumentResponse {
+  message DocumentResult {
+    uint64 rank = 1;
+    Document document = 2;
+  }
+
+  repeated DocumentResult results = 1;
+}
+
+
+service DocumentSearch {
+
+    rpc FindDocument(FindDocumentRequest) returns (FindDocumentResponse) {
+        option (google.api.http) = {
+            post: "/v1/document/find"
+            body: "*"
+        };
+    }
+
+}

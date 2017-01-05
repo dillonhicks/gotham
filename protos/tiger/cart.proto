@@ -1,0 +1,39 @@
+syntax = "proto3";
+option py_generic_services = true;
+
+import "google/api/annotations.proto";
+
+package tiger;
+
+
+message Cart {
+    repeated Item items = 1;
+}
+
+
+message Item {
+    string item_id = 1;
+    string sku = 2;
+    uint32 count = 3;
+}
+
+
+message GetCartRequest {
+    string cart_id = 1;
+}
+
+
+message GetCartResponse {
+    Cart cart = 1;
+}
+
+
+service CartManager {
+
+    rpc GetCart(GetCartRequest) returns (GetCartResponse) {
+        option (google.api.http) = {
+            get: "/v1/cart/{cart_id}"
+        };
+    }
+
+}
