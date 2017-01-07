@@ -17,7 +17,7 @@ setup(
     description='Service Models',
     long_description=__doc__,
     package_dir={'': '.'},
-    package_data={'tiger': ['bin/*']},
+    package_data={'tiger': ['bin/*', '*.json']},
     scripts=['bin/{{proxy_script_name}}'],
     namespace_packages=[],
     packages=find_packages('.'),

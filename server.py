@@ -1,32 +1,47 @@
-"""Python Stub implementation of {{package.name}}"""
+"""Python Stub implementation of tiger"""
 from concurrent import futures
 import time
 
 from subprocess import Popen, PIPE
 import grpc
 
-{% for service in services %}
-from {{package.name}} import {{service.module.name}}, {{service.module.name}}_grpc
-{% endfor %}
+
+from tiger import cart_pb2, cart_pb2_grpc
+
+from tiger import search_pb2, search_pb2_grpc
+
 
 _ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
-{% for service in services %}
-class {{service.name}}({{service.module.name}}_grpc.{{service.name}}Servicer):
 
-{% for method in service.methods %}
-    def {{method.name}}(self, request, context):
-        return {{service.module.name}}.{{method.response.name}}()
-{% endfor %}
-{% endfor %}
+class CartManager(cart_pb2_grpc.CartManagerServicer):
+
+
+    def GetCart(self, request, context):
+        return cart_pb2.GetCartResponse()
+
+
+class DocumentSearch(search_pb2_grpc.DocumentSearchServicer):
+
+    def FindDocument(self, request, context):
+        response = search_pb2.FindDocumentResponse()
+        result = response.results.add()
+        result.rank = 1
+        result.document.id = 2342
+        result.document.author= 'abcxyz'
+        result.document.tags.extend(request.terms)
+        return response
+
 
 
 def serve(port, with_proxy_server=False):
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-{% for service in services %}
-    {{service.module.name}}_grpc.add_{{service.name}}Servicer_to_server({{service.name}}(), server)
-{% endfor %}
+
+    cart_pb2_grpc.add_CartManagerServicer_to_server(CartManager(), server)
+
+    search_pb2_grpc.add_DocumentSearchServicer_to_server(DocumentSearch(), server)
+
     server.add_insecure_port('[::]:{}'.format(port))
     server.start()
 
@@ -34,7 +49,7 @@ def serve(port, with_proxy_server=False):
 
     try:
         if with_proxy_server:
-            proxy_process = Popen(['{{server.rest_proxy_script}}'])
+            proxy_process = Popen(['tiger-rest-proxy'])
         while True:
             time.sleep(_ONE_DAY_IN_SECONDS)
     except KeyboardInterrupt:
@@ -48,11 +63,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Run {{package.name}}, optionally with the REST Proxy Server',
+        description='Run tiger, optionally with the REST Proxy Server',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-p', '--port', type=str, action='store',
-                        default={{server.default_port}},
+                        default=8081,
                         help='server port')
 
     parser.add_argument('--with-proxy-server', action='store_true',

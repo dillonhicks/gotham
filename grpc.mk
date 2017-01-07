@@ -8,6 +8,8 @@ PROTOC=python -m grpc.tools.protoc
 # Source Directories
 PROTOS_DIR ?= protos
 PACKAGE_DIR ?= tiger
+SWAGGER_DIR ?= swagger
+GRPC_DIR ?= grpc
 TEMPLATES_DIR ?= $(PWD)/templates
 
 # Choose the target language.
@@ -17,7 +19,8 @@ TARGET_LANGUAGE ?= python
 OUTPUT ?= gens
 OUTPUT := $(OUTPUT)/$(TARGET_LANGUAGE)
 _:= $(shell mkdir -p $(OUTPUT)/../grpc)
-OUTPUT_GRPC_GATEWAY = $(shell readlink -f $(OUTPUT)/../grpc)
+OUTPUT_GRPC_GATEWAY = $(shell readlink -f $(OUTPUT)/../$(GRPC_DIR))
+OUTPUT_SWAGGER = $(shell readlink -f $(OUTPUT)/../$(SWAGGER_DIR))
 GOPATH=$(OUTPUT_GRPC_GATEWAY)
 GOBIN=$(OUTPUT_GRPC_GATEWAY)/bin
 
@@ -65,6 +68,7 @@ packaging-python:
 		 go get . && \
 		go build -o $(REST_PROXY_NAME) -buildmode pie main.go
 	mkdir -p $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/bin
+	cp -R $(OUTPUT_SWAGGER)/$(PACKAGE_DIR)/* $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/
 	cp $(OUTPUT_GRPC_GATEWAY)/$(REST_PROXY_NAME) $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/bin
 	cd $(OUTPUT)/$(PACKAGE_DIR) && \
 		python setup.py bdist_wheel && \
@@ -90,10 +94,10 @@ $(OUTPUT):
 $(OUTPUT_GRPC_GATEWAY):
 	mkdir -p $(OUTPUT_GRPC_GATEWAY)
 
-
 sources:
 	mkdir -p $(OUTPUT)/bin
 	mkdir -p $(OUTPUT_GRPC_GATEWAY)
+	mkdir -p $(OUTPUT_SWAGGER)
 	$(PROTOC) \
 		$(FLAGS) \
 		--proto_path=$(GOPATH)/src \
@@ -101,6 +105,7 @@ sources:
 		--go_out=Mgoogle/api/annotations.proto=github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api,plugins=grpc:$(OUTPUT_GRPC_GATEWAY) \
 		--grpc-gateway_out=logtostderr=true:$(OUTPUT_GRPC_GATEWAY) \
 		--grpc_$(TARGET_LANGUAGE)_out=$(OUTPUT) \
+		 --swagger_out=logtostderr=true:$(OUTPUT_SWAGGER) \
 		$(DEPS)
 	python render.py --file $(TEMPLATES_DIR)/{{grpc_json_proxy_name}}.go --out $(OUTPUT_GRPC_GATEWAY)
 	python render.py --file $(TEMPLATES_DIR)/{{proxy_script_name}} --out $(OUTPUT)/bin
@@ -109,7 +114,7 @@ sources:
 clean:
 	-rm -rvf gens
 	-rm -rvf gen-*
-
+	-rm -rfv build
 
 really-clean: clean
 	-rm -rfv $(GOOGLEAPIS)

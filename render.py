@@ -14,17 +14,20 @@ logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
 
 
-class Method(NamedTuple):
-    name: str
 
+class Request(NamedTuple):
+    name: str
 
 class Response(NamedTuple):
     name: str
 
+class Method(NamedTuple):
+    name: str
+    response: Response
+    request: Request
 
 class Module(NamedTuple):
     name: str
-    response: Response
 
 
 class Service(NamedTuple):
@@ -40,8 +43,12 @@ class Package(NamedTuple):
     author: str
     author_email: str
     url: str
-    rest_proxy_name: str
     requirements: list
+
+
+class Server(NamedTuple):
+    default_port: int
+    rest_proxy_script: str
 
 
 render = Renderer()
@@ -56,7 +63,6 @@ def base_context():
 
     package = Package(
         name='tiger',
-        rest_proxy_name='tiger-rest-proxy-server',
         version='1.0.0',
         license='Copyright Author',
         author='Dillon Hicks',
@@ -64,9 +70,13 @@ def base_context():
         url='http://github.com/dillonhicks/gotham',
         requirements=requirements)
 
+    server = Server(
+        default_port=8081,
+        rest_proxy_script='{}-rest-proxy'.format(package.name))
+
     return {
         'package': package,
-        'proxy_script_name': 'tiger-rest-proxy'
+        'server': server,
     }
 
 
@@ -83,11 +93,44 @@ def python_setup_py():
     return {}
 
 
-@render.context_for('server.py')
-def python_server_py():
-    import tiger
+from itertools import chain
+from google.protobuf import service
 
-    return {}
+def get_methods(svc):
+    for m in svc.DESCRIPTOR.methods:
+        yield Method(
+            name=m.name,
+            request=Request(svc.GetRequestClass(m).DESCRIPTOR.name),
+            response=Request(svc.GetResponseClass(m).DESCRIPTOR.name))
+
+
+def get_module(mod):
+    return Module(name=mod.__name__.rsplit('.', 1)[-1])
+
+
+def get_services(mod):
+    for name in dir(mod):
+        value = getattr(mod, name)
+        try:
+            if issubclass(value, service.Service) and not name.endswith('Stub'):
+                yield Service(
+                    name=value.DESCRIPTOR.name,
+                    module=get_module(mod),
+                    methods=list(get_methods(value)))
+        except: continue
+
+@render.context_for('server-stubs.py')
+def python_server_py():
+    tiger_dir = Path.cwd() / 'build' / 'python' / 'tiger'
+    import sys
+    sys.path.append(str(tiger_dir))
+    import tiger
+    from tiger import cart_pb2, search_pb2
+    mods = cart_pb2, search_pb2
+    from pprint import pprint
+    services = list(chain.from_iterable(get_services(mod) for mod in mods))
+    pprint(services)
+    return dict(services=services)
 
 
 def parse_args():
