@@ -53,8 +53,6 @@ REST_PROXY_NAME=rest-proxy-server.bin
 export GOPATH
 export GOBIN
 packaging-python:
-	find $(OUTPUT) -type d | grep -v '$(OUTPUT)$$' | xargs -I{} touch {}/__init__.py
-	python render.py --file $(TEMPLATES_DIR)/setup.py --out $(OUTPUT)
 	cd $(OUTPUT) && \
 		mkdir -p $(PACKAGE_DIR) && \
 		mv $(PACKAGE_DIR) $(PACKAGE_DIR).bak && \
@@ -107,8 +105,12 @@ sources:
 		--grpc_$(TARGET_LANGUAGE)_out=$(OUTPUT) \
 		 --swagger_out=logtostderr=true:$(OUTPUT_SWAGGER) \
 		$(DEPS)
+	find $(OUTPUT) -type d | grep -v '$(OUTPUT)$$' | xargs -I{} touch {}/__init__.py
 	python render.py --file $(TEMPLATES_DIR)/{{grpc_json_proxy_name}}.go --out $(OUTPUT_GRPC_GATEWAY)
-	python render.py --file $(TEMPLATES_DIR)/{{proxy_script_name}} --out $(OUTPUT)/bin
+	python render.py --file $(TEMPLATES_DIR)/{{server.rest_proxy_script}} --out $(OUTPUT)/bin
+	python render.py --file $(TEMPLATES_DIR)/setup.py --out $(OUTPUT)
+	python render.py --file $(TEMPLATES_DIR)/client.py --out $(OUTPUT)/$(PACKAGE_DIR)
+	python render.py --file $(TEMPLATES_DIR)/server-stubs.py --out $(OUTPUT)
 
 
 clean:

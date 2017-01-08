@@ -6,8 +6,9 @@ import logging
 from typing import NamedTuple, Iterable
 from collections import namedtuple, defaultdict, MappingView, OrderedDict
 from pathlib import Path, PurePath
-
+from boltons.strutils import camel2under
 from rutabaga import Renderer
+from google.api.annotations_pb2 import http as google_api_http
 
 
 logging.basicConfig(level=logging.INFO)
@@ -18,13 +19,18 @@ LOG = logging.getLogger(__name__)
 class Request(NamedTuple):
     name: str
 
+
 class Response(NamedTuple):
     name: str
+
 
 class Method(NamedTuple):
     name: str
     response: Response
     request: Request
+    python_friendly_name: str
+    route: str
+
 
 class Module(NamedTuple):
     name: str
@@ -96,10 +102,18 @@ def python_setup_py():
 from itertools import chain
 from google.protobuf import service
 
+
 def get_methods(svc):
+
     for m in svc.DESCRIPTOR.methods:
+        http_rule = m.GetOptions().Extensions[google_api_http]
+        verb = http_rule.WhichOneof('pattern')
+        route = getattr(http_rule, verb)
+
         yield Method(
             name=m.name,
+            python_friendly_name=camel2under(m.name),
+            route=route,
             request=Request(svc.GetRequestClass(m).DESCRIPTOR.name),
             response=Request(svc.GetResponseClass(m).DESCRIPTOR.name))
 
@@ -107,30 +121,40 @@ def get_methods(svc):
 def get_module(mod):
     return Module(name=mod.__name__.rsplit('.', 1)[-1])
 
+import inspect
 
 def get_services(mod):
     for name in dir(mod):
         value = getattr(mod, name)
+
         try:
-            if issubclass(value, service.Service) and not name.endswith('Stub'):
+            if inspect.isclass(value) and issubclass(value, service.Service) and not name.endswith('Stub'):
                 yield Service(
                     name=value.DESCRIPTOR.name,
                     module=get_module(mod),
                     methods=list(get_methods(value)))
-        except: continue
+        except:
+            LOG.exception('Something Dumb Happened')
+            continue
+
 
 @render.context_for('server-stubs.py')
 def python_server_py():
-    tiger_dir = Path.cwd() / 'build' / 'python' / 'tiger'
+    tiger_dir = Path.cwd() / 'build' / 'python'
     import sys
     sys.path.append(str(tiger_dir))
-    import tiger
+    print(sys.path)
     from tiger import cart_pb2, search_pb2
     mods = cart_pb2, search_pb2
-    from pprint import pprint
+
     services = list(chain.from_iterable(get_services(mod) for mod in mods))
-    pprint(services)
+    print(services)
     return dict(services=services)
+
+
+@render.context_for('client.py')
+def python_client_py():
+    return python_server_py()
 
 
 def parse_args():
@@ -154,7 +178,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-
+    logging.basicConfig(level=logging.INFO)
     if args.src_path:
         render.render_directory(args.src_path, args.dest_path)
     else:

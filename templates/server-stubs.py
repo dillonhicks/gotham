@@ -1,15 +1,15 @@
 """Python Stub implementation of {{package.name}}"""
 from concurrent import futures
 import time
-
 from subprocess import Popen, PIPE
+
 import grpc
+from thundersnow.dateutil import Delta
 
 {% for service in services %}
 from {{package.name}} import {{service.module.name}}, {{service.module.name}}_grpc
 {% endfor %}
 
-_ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
 {% for service in services %}
 class {{service.name}}({{service.module.name}}_grpc.{{service.name}}Servicer):
@@ -36,7 +36,7 @@ def serve(port, with_proxy_server=False):
         if with_proxy_server:
             proxy_process = Popen(['{{server.rest_proxy_script}}'])
         while True:
-            time.sleep(_ONE_DAY_IN_SECONDS)
+            time.sleep(Delta.one_day.total_seconds())
     except KeyboardInterrupt:
         if proxy_process is not None:
             proxy_process.terminate()
