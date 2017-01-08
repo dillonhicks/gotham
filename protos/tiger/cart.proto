@@ -18,22 +18,85 @@ message Item {
 }
 
 
-message GetCartRequest {
+message CartRequest {
     string cart_id = 1;
 }
 
 
-message GetCartResponse {
+message CartResponse {
+    Cart cart = 1;
+}
+
+message AddCartItemRequest {
+    string cart_id = 1;
+    string item_id = 2;
+}
+
+
+message AddCartItemResponse {
     Cart cart = 1;
 }
 
 
+message ModifyCartItemRequest {
+    string cart_id = 1;
+    string item_id = 2;
+    uint32 count = 3;
+}
+
+message ModifyCartItemResponse {
+    Cart cart = 1;
+}
+
+
+message ListCartsRequest {
+    uint32 limit = 1;
+}
+
+message ListCartsResponse {
+    repeated Cart carts =1;
+}
+
+
+message DeleteCartRequest {
+    string cart_id = 1;
+}
+
+message DeleteCartResponse {}
+
+
 service CartManager {
 
-    rpc GetCart(GetCartRequest) returns (GetCartResponse) {
+    rpc Cart(CartRequest) returns (CartResponse) {
         option (google.api.http) = {
             get: "/v1/cart/{cart_id}"
         };
     }
 
+    rpc AddCartItem(AddCartItemRequest) returns (AddCartItemResponse) {
+        option (google.api.http) = {
+            put: "/v1/cart/{cart_id}"
+            body: "*"
+        };
+    }
+
+    rpc ModifyCartItem(ModifyCartItemRequest) returns (ModifyCartItemResponse) {
+        option (google.api.http) = {
+            patch: "/v1/cart/{cart_id}"
+            body: "*"
+        };
+    }
+
+    rpc ListCarts(ListCartsRequest) returns (ListCartsResponse) {
+        option (google.api.http) = {
+            get: "/v1/cart"
+        };
+    }
+    
+    rpc DeleteCart(DeleteCartRequest) returns (DeleteCartResponse) {
+        option (google.api.http) = {
+            delete: "/v1/cart/{cart_id}"
+        };
+    }
+    
 }

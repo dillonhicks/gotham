@@ -8,18 +8,22 @@ from thundersnow.dateutil import Delta
 
 {% for service in services %}
 from {{package.name}} import {{service.module.name}}, {{service.module.name}}_grpc
+from {{package.name}}.{{service.module.name}} import ({% for method in service.methods %}
+    {{method.request.name}},
+    {{method.response.name}},
+{% endfor %})
 {% endfor %}
 
 
 {% for service in services %}
 class {{service.name}}({{service.module.name}}_grpc.{{service.name}}Servicer):
-
 {% for method in service.methods %}
     def {{method.name}}(self, request, context):
-        return {{service.module.name}}.{{method.response.name}}()
-{% endfor %}
-{% endfor %}
+        # type: ({{method.request.name}}, grpc.RpcContext) -> {{method.response.name}}
 
+        return {{method.response.name}}()
+{% endfor %}
+{% endfor %}
 
 def serve(port, with_proxy_server=False):
 

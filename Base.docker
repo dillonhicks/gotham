@@ -1,0 +1,11 @@
+FROM python:3.6
+
+COPY requirements.txt /
+
+RUN pip install Cython && \
+    pip install -r requirements.txt && \
+    curl -O https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz && \
+    tar -xvf go1.6.linux-amd64.tar.gz && \
+    mv go /usr/local
+
+ENV PATH=/usr/local/go/bin:$PATH

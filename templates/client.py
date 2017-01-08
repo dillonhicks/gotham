@@ -10,7 +10,7 @@ import time
 from abc import abstractmethod
 from collections import namedtuple
 from functools import partial
-
+import json
 import grpc
 import requests
 import six
@@ -22,7 +22,7 @@ from thundersnow.precondition import check_argument, check_state, IllegalArgumen
 from thundersnow.predicate import is_not_none
 from thundersnow.reflection import class_name, name_of
 from thundersnow.type import sentinel
-
+import jinja2
 
 __all__ = (
     'ClientError',
@@ -86,8 +86,6 @@ class _ResponseWrapper(namedtuple(
             'meta',
         ))):
 
-    MAX_RESPONSE_DISPLAY_LEN = 256
-
     @staticmethod
     def wrap(response, meta):
         return _ResponseWrapper(response=response, meta=meta)
@@ -135,7 +133,6 @@ class BaseReflectionClient(AbstractClient):
             http_rule = method_desc.GetOptions().Extensions[google_api_http]
         except KeyError:
             http_rule = None
-            verb = None
 
         check_state(
             is_not_none(http_rule),
@@ -145,11 +142,11 @@ class BaseReflectionClient(AbstractClient):
         verb = http_rule.WhichOneof('pattern')
         route = getattr(http_rule, verb, None)
 
-        # The base url should define a trainling slash
+        # The base url should define a trailing slash
         url = urlutil.join(self.base_url, route)
 
         LOG.info('calling %s (%s %s)', protobuf_name(self.Service), verb, url)
-        response = self._do_call(url, verb, request)
+        response = self._do_call(url, verb, protobuf_to_json(request))
 
         LOG.info(
             'http_status: %s', response.status_code)
@@ -198,8 +195,7 @@ class HTTPClient(BaseReflectionClient):
                     raise
                 time.sleep(0.1 * retry_number)
 
-    def _do_call(self, url, verb, request):
-        data = protobuf_to_json(request)
+    def _do_call(self, url, verb, data):
 
         response = self._retriable_call(url, verb, data)
 
@@ -213,9 +209,44 @@ class HTTPClient(BaseReflectionClient):
         return response
 
 
+class RemoteOperation(object):
+    def __init__(self, client, method_name):
+        self.client = client
+        method_desc = self.client.Service.GetDescriptor().FindMethodByName(method_name)
+
+        try:
+            http_rule = method_desc.GetOptions().Extensions[google_api_http]
+        except KeyError:
+            http_rule = None
+
+        self.verb = http_rule.WhichOneof('pattern')
+        self.url = urlutil.join(self.client.base_url, getattr(http_rule, self.verb))
+        self.url = self.url.replace('{', '{'*2).replace('}', '}'*2)
+
+    def __call__(self, **kwargs):
+
+        actual_url = jinja2.Environment().from_string(self.url).render(kwargs)
+        response = self.client._do_call(actual_url, self.verb, json.dumps(kwargs))
+        LOG.info('%s %s %s', self.verb.upper(), actual_url, response.status_code)
+
+        return _ResponseWrapper.wrap(response.json(), response)
+
+    def future(self, **kwargs):
+        return self.client.executor.submit(partial(self, **kwargs))
+
+
 {% for service in services %}
 class {{service.name}}RestClient(HTTPClient):
     def __init__(self, host, port):
-        super({{service.name}}RestClient, self).__init__({{service.module.name}}.{{service.name}},'{}:{}'.format(host, port))
+        super({{service.name}}RestClient, self).__init__({{service.module.name}}.{{service.name}}, '{}:{}'.format(host, port))
 
+{% for method in service.methods %}
+    class {{method.name}}Operation(RemoteOperation):
+        def __init__(self, client):
+            super({{service.name}}RestClient.{{method.name}}Operation, self).__init__(self, client)
+
+    @property
+    def {{method.rest_name}}(self, **kwargs):
+        return RemoteOperation(self, '{{method.name}}')
+{% endfor %}
 {% endfor %}

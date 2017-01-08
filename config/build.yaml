@@ -1,0 +1,6 @@
+name: tiger
+version: 0.0.1
+author: Dillon Hicks
+author_email: dillon@dillonhicks.io
+project_url: https://github.com/dillonhicks/gotham
+default_port: 8080

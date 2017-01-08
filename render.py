@@ -1,19 +1,40 @@
 #!/usr/bin/env python
 import argparse
-import os
-import re
+import importlib
+import inspect
 import logging
+import pkgutil
+import sys
+from itertools import chain
+from pathlib import Path
 from typing import NamedTuple, Iterable
-from collections import namedtuple, defaultdict, MappingView, OrderedDict
-from pathlib import Path, PurePath
+
+import pip
+from thundersnow import ioutil
 from boltons.strutils import camel2under
-from rutabaga import Renderer
 from google.api.annotations_pb2 import http as google_api_http
+from google.protobuf import service
+from rutabaga import Renderer
+import yaml
 
 
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
 
+
+class Configuration(NamedTuple):
+    name: str
+    version: str
+    configfile: Path
+    output_dir: Path
+    author: str
+    author_email: str
+    project_url: str
+    default_port: int
+
+
+class config:
+    pass
 
 
 class Request(NamedTuple):
@@ -30,6 +51,8 @@ class Method(NamedTuple):
     request: Request
     python_friendly_name: str
     route: str
+    verb: str
+    rest_name: str
 
 
 class Module(NamedTuple):
@@ -62,22 +85,21 @@ render = Renderer()
 
 @render.context_for('.*', regex=True)
 def base_context():
-    import pip
-
-    requirements = {i.key: i for i in pip.get_installed_distributions()}
-    requirements = ['{}=={}'.format(name, pkg.version) for name, pkg in requirements.items() if name in {'protobuf', 'googleapis-common-protos'}]
+    # TODO: Slice out requirments needed for pkg
+    requirements = [i.key for i in pip.get_installed_distributions()]
+    # requirements = ['{}=={}'.format(name, pkg.version) for name, pkg in requirements.items() ]
 
     package = Package(
-        name='tiger',
-        version='1.0.0',
-        license='Copyright Author',
-        author='Dillon Hicks',
-        author_email='dillon@dillonhicks.io',
-        url='http://github.com/dillonhicks/gotham',
+        name=config.name,
+        version=config.version,
+        license='Copyright',
+        author=config.author,
+        author_email=config.author_email,
+        url=config.project_url,
         requirements=requirements)
 
     server = Server(
-        default_port=8081,
+        default_port=config.default_port,
         rest_proxy_script='{}-rest-proxy'.format(package.name))
 
     return {
@@ -99,10 +121,6 @@ def python_setup_py():
     return {}
 
 
-from itertools import chain
-from google.protobuf import service
-
-
 def get_methods(svc):
 
     for m in svc.DESCRIPTOR.methods:
@@ -114,6 +132,8 @@ def get_methods(svc):
             name=m.name,
             python_friendly_name=camel2under(m.name),
             route=route,
+            verb=verb,
+            rest_name='{}_{}'.format(verb, camel2under(m.name)),
             request=Request(svc.GetRequestClass(m).DESCRIPTOR.name),
             response=Request(svc.GetResponseClass(m).DESCRIPTOR.name))
 
@@ -121,7 +141,6 @@ def get_methods(svc):
 def get_module(mod):
     return Module(name=mod.__name__.rsplit('.', 1)[-1])
 
-import inspect
 
 def get_services(mod):
     for name in dir(mod):
@@ -140,15 +159,15 @@ def get_services(mod):
 
 @render.context_for('server-stubs.py')
 def python_server_py():
-    tiger_dir = Path.cwd() / 'build' / 'python'
-    import sys
-    sys.path.append(str(tiger_dir))
-    print(sys.path)
-    from tiger import cart_pb2, search_pb2
-    mods = cart_pb2, search_pb2
+    sys.path.append(str(config.output_dir))
+    LOG.info('PythonPath: %s', sys.path)
 
-    services = list(chain.from_iterable(get_services(mod) for mod in mods))
-    print(services)
+    package = importlib.import_module(config.name)
+    results = pkgutil.iter_modules(package.__path__, package.__name__ + '.')
+    modules = [importlib.import_module(r.name) for r in results if r.name.endswith('pb2')]
+    services = list(chain.from_iterable(get_services(mod) for mod in modules))
+    LOG.info('Found service defs: %s', services)
+
     return dict(services=services)
 
 
@@ -157,10 +176,22 @@ def python_client_py():
     return python_server_py()
 
 
+def parse_config(configfile):
+    data = yaml.load(ioutil.fulltext(configfile))
+    data['configfile'] = configfile
+    data['output_dir'] = Path.cwd() / 'build' / 'python'
+    for key, value in Configuration(**data)._asdict().items():
+        setattr(config, key, value)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Render templates',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument('-c', '--config', type=Path, action='store',
+                           help='Configuration for pkg name and build dir',
+                           dest='config', required=True)
 
     subparser = parser.add_mutually_exclusive_group(required=True)
     subparser.add_argument('-i', '--in', type=str, action='store',
@@ -179,6 +210,9 @@ def parse_args():
 def main():
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
+
+    parse_config(args.config)
+
     if args.src_path:
         render.render_directory(args.src_path, args.dest_path)
     else:

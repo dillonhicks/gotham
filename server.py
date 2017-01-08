@@ -16,9 +16,8 @@ _ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
 class CartManager(cart_pb2_grpc.CartManagerServicer):
 
-
-    def GetCart(self, request, context):
-        return cart_pb2.GetCartResponse()
+    def Cart(self, request, context):
+        return cart_pb2.CartResponse()
 
 
 class DocumentSearch(search_pb2_grpc.DocumentSearchServicer):

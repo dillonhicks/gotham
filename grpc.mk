@@ -17,6 +17,17 @@ TARGET_LANGUAGE ?= python
 
 # Choose the output directory
 OUTPUT ?= gens
+
+CPP_OUT:=$(OUTPUT)/cpp
+CSHARP_OUT:=$(OUTPUT)/csharp
+JAVANANO_OUT:=$(OUTPUT)/javanano
+JAVA_OUT:=$(OUTPUT)/java
+JS_OUT:=$(OUTPUT)/js
+OBJECTIVEC_OUT:=$(OUTPUT)/objectivec
+PYTHON_OUT=$(OUTPUT)/python
+PHP_OUT:=$(OUTPUT)/php
+RUBY_OUT:=$(OUTPUT)/ruby
+
 OUTPUT := $(OUTPUT)/$(TARGET_LANGUAGE)
 _:= $(shell mkdir -p $(OUTPUT)/../grpc)
 OUTPUT_GRPC_GATEWAY = $(shell readlink -f $(OUTPUT)/../$(GRPC_DIR))
@@ -38,9 +49,18 @@ else
 endif
 
 
-FLAGS+= --$(TARGET_LANGUAGE)_out=$(OUTPUT) \
-	--proto_path=$(PROTOS_DIR) \
-	--proto_path=$(GOOGLEAPIS)
+FLAGS+= --proto_path=$(PROTOS_DIR) \
+	--proto_path=$(GOOGLEAPIS) \
+                                   \
+	--python_out=$(OUTPUT) \
+	# --cpp_out=$(CPP_OUT) \
+	# --csharp_out=$(CSHARP_OUT) \
+	# --objectivec_out=$(OBJECTIVEC_OUT) \
+	# --java_out=$(JAVA_OUT) \
+	# --javanano_out=$(JAVANANO_OUT) \
+	# --js_out=$(JS_OUT) \
+	# --php_out=$(PHP_OUT) \
+	# --ruby_out=$(RUBY_OUT)
 
 
 DEPS:= $(shell find $(PROTOS_DIR) -type f -name '*.proto')
@@ -92,6 +112,7 @@ $(OUTPUT):
 $(OUTPUT_GRPC_GATEWAY):
 	mkdir -p $(OUTPUT_GRPC_GATEWAY)
 
+sources: RENDER = python render.py --config config/build.yaml
 sources:
 	mkdir -p $(OUTPUT)/bin
 	mkdir -p $(OUTPUT_GRPC_GATEWAY)
@@ -106,11 +127,11 @@ sources:
 		 --swagger_out=logtostderr=true:$(OUTPUT_SWAGGER) \
 		$(DEPS)
 	find $(OUTPUT) -type d | grep -v '$(OUTPUT)$$' | xargs -I{} touch {}/__init__.py
-	python render.py --file $(TEMPLATES_DIR)/{{grpc_json_proxy_name}}.go --out $(OUTPUT_GRPC_GATEWAY)
-	python render.py --file $(TEMPLATES_DIR)/{{server.rest_proxy_script}} --out $(OUTPUT)/bin
-	python render.py --file $(TEMPLATES_DIR)/setup.py --out $(OUTPUT)
-	python render.py --file $(TEMPLATES_DIR)/client.py --out $(OUTPUT)/$(PACKAGE_DIR)
-	python render.py --file $(TEMPLATES_DIR)/server-stubs.py --out $(OUTPUT)
+	$(RENDER) --file $(TEMPLATES_DIR)/{{grpc_json_proxy_name}}.go --out $(OUTPUT_GRPC_GATEWAY)
+	$(RENDER) --file $(TEMPLATES_DIR)/{{server.rest_proxy_script}} --out $(OUTPUT)/bin
+	$(RENDER) --file $(TEMPLATES_DIR)/setup.py --out $(OUTPUT)
+	$(RENDER) --file $(TEMPLATES_DIR)/client.py --out $(OUTPUT)/$(PACKAGE_DIR)
+	$(RENDER) --file $(TEMPLATES_DIR)/server-stubs.py --out $(OUTPUT)
 
 
 clean:
