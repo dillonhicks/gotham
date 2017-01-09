@@ -108,14 +108,6 @@ def base_context():
     }
 
 
-@render.context_for('{{grpc_json_proxy_name}}.go')
-def json_proxy_server():
-    return {
-        'service_names': ['CartManager', 'DocumentSearch'],
-        'grpc_json_proxy_name': 'main'
-    }
-
-
 @render.context_for('setup.py')
 def python_setup_py():
     return {}
@@ -157,8 +149,10 @@ def get_services(mod):
             continue
 
 
+@render.context_for('{{grpc_json_proxy_name}}.go')
 @render.context_for('server-stubs.py')
 def python_server_py():
+
     sys.path.append(str(config.output_dir))
     LOG.info('PythonPath: %s', sys.path)
 
@@ -168,7 +162,11 @@ def python_server_py():
     services = list(chain.from_iterable(get_services(mod) for mod in modules))
     LOG.info('Found service defs: %s', services)
 
-    return dict(services=services)
+    return {
+        'services': services,
+        'service_names': [s.name for s in services],
+        'grpc_json_proxy_name': 'main'
+    }
 
 
 @render.context_for('client.py')
