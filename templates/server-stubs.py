@@ -1,5 +1,6 @@
 """Python Stub implementation of {{package.name}}"""
 from concurrent import futures
+import pkg_resources
 import time
 from subprocess import Popen, PIPE
 
@@ -35,10 +36,13 @@ def serve(port, with_proxy_server=False):
     server.start()
 
     proxy_process = None
+    proxy_filepath = pkg_resources.resource_filename('{{package.name}}', 'bin/rest-proxy-server.bin')
+    if sys.platform.lower() == 'darwin':
+        proxy_filepath = '.'.join([proxy_filepath, 'darwin'])
 
     try:
         if with_proxy_server:
-            proxy_process = Popen(['{{server.rest_proxy_script}}'])
+            proxy_process = Popen([proxy_filepath])
         while True:
             time.sleep(Delta.one_day.total_seconds())
     except KeyboardInterrupt:

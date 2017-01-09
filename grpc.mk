@@ -83,11 +83,13 @@ packaging-python:
 	cd $(OUTPUT_GRPC_GATEWAY) && \
 		mkdir -p src && \
 		mv $(PACKAGE_DIR) src && \
-		 go get . && \
-		go build -o $(REST_PROXY_NAME) -buildmode pie main.go
+		go get . && \
+		GOOS=linux go build -o $(REST_PROXY_NAME) -buildmode pie main.go && \
+		GOOS=darwin go build -o $(REST_PROXY_NAME).darwin -buildmode exe main.go
 	mkdir -p $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/bin
 	cp -R $(OUTPUT_SWAGGER)/$(PACKAGE_DIR)/* $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/
 	cp $(OUTPUT_GRPC_GATEWAY)/$(REST_PROXY_NAME) $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/bin
+	cp $(OUTPUT_GRPC_GATEWAY)/$(REST_PROXY_NAME).darwin $(OUTPUT)/$(PACKAGE_DIR)/$(PACKAGE_DIR)/bin
 	cd $(OUTPUT)/$(PACKAGE_DIR) && \
 		python setup.py bdist_wheel && \
 		mv dist/*.whl ../../
